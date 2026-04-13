@@ -107,8 +107,7 @@ The **GPSA Engineering Data Book** provides the following recommended K-values (
 
 Always verify the final design with detailed droplet settling calculations, vendor mist eliminator data, and mechanical considerations.
 
-
-# How to Use
+## How to Use
 
 When you run a FLASH2 drum in Aspen and flip to the stream results, it'll have calculated the densities and mass flowrates of the vapor and liquid fractions leaving the drum for you.
 This information is essential to this script.

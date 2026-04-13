@@ -68,15 +68,33 @@ def size_horizontal_flash_drum(
     return D, L, actual_vapor_velocity
 
 
-# ========================== EXAMPLE USAGE ==========================
+# ========================== COMMAND LINE INTERFACE ==========================
 if __name__ == "__main__":
-    # ←←← Put your FLASH2 results here ←←←
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="Size a horizontal flash drum based on vapor and liquid flows from Aspen FLASH2."
+    )
+
+    parser.add_argument("--vapor-mass",     type=float, required=True,  help="Vapor mass flow rate (kg/s)")
+    parser.add_argument("--liquid-mass",    type=float, required=True,  help="Liquid mass flow rate (kg/s)")
+    parser.add_argument("--vapor-density",  type=float, required=True,  help="Vapor density (kg/m³)")
+    parser.add_argument("--liquid-density", type=float, required=True,  help="Liquid density (kg/m³)")
+
+    parser.add_argument("--residence-time", type=float, default=5.0,    help="Liquid residence time (minutes) [default: 5.0]")
+    parser.add_argument("--k-factor",       type=float, default=0.107,  help="Souders-Brown K-factor (m/s) [default: 0.107]")
+    parser.add_argument("--l-over-d",       type=float, default=4.0,    help="Length to Diameter ratio [default: 4.0]")
+    parser.add_argument("--margin",         type=float, default=1.20,   help="Safety margin on vapor area [default: 1.20]")
+
+    args = parser.parse_args()
+
     size_horizontal_flash_drum(
-        vapor_mass_flow_kg_s = 3.267,      # kg/s   ← change this
-        liquid_mass_flow_kg_s = 3.267,    # kg/s   ← change this
-        vapor_density_kg_m3 = 79.4155,      # kg/m³  ← change this
-        liquid_density_kg_m3 = 843.582,      # kg/m³  ← change this
-        residence_time_min = 5.0,
-        K_factor = 0.107,                # depends on the pressure
-        L_over_D = 4.0 # Length to diameter ratio
+        vapor_mass_flow_kg_s = args.vapor_mass,
+        liquid_mass_flow_kg_s = args.liquid_mass,
+        vapor_density_kg_m3 = args.vapor_density,
+        liquid_density_kg_m3 = args.liquid_density,
+        residence_time_min = args.residence_time,
+        K_factor = args.k_factor,
+        L_over_D = args.l_over_d,
+        margin = args.margin
     )
