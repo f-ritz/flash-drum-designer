@@ -111,3 +111,40 @@ Always verify the final design with detailed droplet settling calculations, vend
 
 When you run a FLASH2 drum in Aspen and flip to the stream results, it'll have calculated the densities and mass flowrates of the vapor and liquid fractions leaving the drum for you.
 This information is essential to this script.
+By default, K = 0.107 and residence time = 5 minutes, so you do not need to enter those manually if you don't wish to change them.
+
+### Running from Command Line
+
+Open a terminal in the folder containing `flash_drum_sizing.py` and use the following commands:
+
+#### On Windows (PowerShell or Command Prompt)
+```powershell
+py flash_drum_sizing.py --vapor-mass 3.267 --liquid-mass 3.267 --vapor-density 79.42 --liquid-density 843.58
+```
+#### On Linux / macOS
+
+```bash
+python flash_drum_sizing.py --vapor-mass 3.267 --liquid-mass 3.267 --vapor-density 79.42 --liquid-density 843.58
+```
+
+#### Available arguments
+
+Argument,Description,Default,Required
+--vapor-mass,Vapor mass flow rate (kg/s),-,Yes
+--liquid-mass,Liquid mass flow rate (kg/s),-,Yes
+--vapor-density,Vapor density (kg/m³),-,Yes
+--liquid-density,Liquid density (kg/m³),-,Yes
+--residence-time,Liquid residence time (minutes),5.0,No
+--k-factor,Souders-Brown K-factor (m/s),0.107,No
+--l-over-d,Length / Diameter ratio,4.0,No
+--margin,Safety margin on vapor area,1.20,No
+
+#### Basic example using test values
+```powershell
+py flash_drum_sizing.py --vapor-mass 3.267 --liquid-mass 3.267 --vapor-density 79.42 --liquid-density 843.58
+```
+
+#### Custom example with different residence time and K-factor
+```powershell
+py flash_drum_sizing.py --vapor-mass 8.5 --liquid-mass 4.2 --vapor-density 45.3 --liquid-density 720 --residence-time 6 --k-factor 0.095
+```
