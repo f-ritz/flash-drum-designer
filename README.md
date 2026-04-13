@@ -129,15 +129,19 @@ python flash_drum_sizing.py --vapor-mass 3.267 --liquid-mass 3.267 --vapor-densi
 
 #### Available arguments
 
-Argument,Description,Default,Required
---vapor-mass,Vapor mass flow rate (kg/s),-,Yes
---liquid-mass,Liquid mass flow rate (kg/s),-,Yes
---vapor-density,Vapor density (kg/m³),-,Yes
---liquid-density,Liquid density (kg/m³),-,Yes
---residence-time,Liquid residence time (minutes),5.0,No
---k-factor,Souders-Brown K-factor (m/s),0.107,No
---l-over-d,Length / Diameter ratio,4.0,No
---margin,Safety margin on vapor area,1.20,No
+#### Available Arguments
+
+| Argument           | Description                              | Default | Required |
+|--------------------|------------------------------------------|---------|----------|
+| `--vapor-mass`     | Vapor mass flow rate (kg/s)              | -       | Yes      |
+| `--liquid-mass`    | Liquid mass flow rate (kg/s)             | -       | Yes      |
+| `--vapor-density`  | Vapor density (kg/m³)                    | -       | Yes      |
+| `--liquid-density` | Liquid density (kg/m³)                   | -       | Yes      |
+| `--residence-time` | Liquid residence time (minutes)          | 5.0     | No       |
+| `--k-factor`       | Souders-Brown K-factor (m/s)             | 0.107   | No       |
+| `--l-over-d`       | Length / Diameter ratio                  | 4.0     | No       |
+| `--margin`         | Safety margin on vapor area              | 1.20    | No       |
+
 
 #### Basic example using test values
 ```powershell
