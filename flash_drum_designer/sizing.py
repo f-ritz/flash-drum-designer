@@ -6,7 +6,7 @@ import math
 from dataclasses import dataclass
 from enum import Enum
 
-from flash_drum_designer.k_factor import ServiceType, resolve_k_factor
+from flash_drum_designer.k_factor import PressureRelation, ServiceType, resolve_k_factor
 from flash_drum_designer.units import UnitSystem, bar_gauge_to_psig, kg_m3_to_lb_ft3, kg_s_to_lb_hr, m_to_ft, m_to_in
 
 DEFAULT_LIQUID_LEVEL_FRACTION = 0.5
@@ -35,6 +35,7 @@ class FlashDrumInputs:
     k_factor: float | None = 0.107
     use_gpsa_k_factor: bool = False
     pressure_bar_gauge: float | None = None
+    pressure_relation: PressureRelation = PressureRelation.AT
     service_type: ServiceType = ServiceType.STANDARD
     service_multiplier: float | None = None
     has_demister: bool = True
@@ -66,29 +67,31 @@ class FlashDrumInputs:
         if self.pressure_bar_gauge is not None and self.pressure_bar_gauge < 0:
             raise ValueError("Gauge pressure must be zero or positive.")
 
-    @property
-    def effective_k_factor(self) -> float:
-        k_value, _ = resolve_k_factor(
+    def _resolved_k_factor(self) -> tuple[float, str, str]:
+        return resolve_k_factor(
             manual_k_factor=self.k_factor,
             pressure_bar_gauge=self.pressure_bar_gauge,
             use_gpsa=self.use_gpsa_k_factor,
+            pressure_relation=self.pressure_relation,
             service_type=self.service_type,
             service_multiplier=self.service_multiplier,
             has_demister=self.has_demister,
         )
+
+    @property
+    def effective_k_factor(self) -> float:
+        k_value, _, _ = self._resolved_k_factor()
         return k_value
 
     @property
     def k_factor_source(self) -> str:
-        _, source = resolve_k_factor(
-            manual_k_factor=self.k_factor,
-            pressure_bar_gauge=self.pressure_bar_gauge,
-            use_gpsa=self.use_gpsa_k_factor,
-            service_type=self.service_type,
-            service_multiplier=self.service_multiplier,
-            has_demister=self.has_demister,
-        )
+        _, source, _ = self._resolved_k_factor()
         return source
+
+    @property
+    def k_factor_applicability(self) -> str:
+        _, _, applicability = self._resolved_k_factor()
+        return applicability
 
 
 @dataclass(frozen=True)
@@ -290,6 +293,8 @@ def format_result(
     ]
     if pressure_line:
         lines.append(pressure_line)
+    if inputs.use_gpsa_k_factor and inputs.k_factor_applicability:
+        lines.append(f"  K applicability     : {inputs.k_factor_applicability}")
 
     lines.extend(
         [

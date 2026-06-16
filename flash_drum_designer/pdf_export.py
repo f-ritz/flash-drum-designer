@@ -62,6 +62,10 @@ def _input_rows(inputs: FlashDrumInputs, unit_system: UnitSystem) -> list[tuple[
             ("Liquid level (design)", f"{DEFAULT_LIQUID_LEVEL_FRACTION:.0%} (half-full)"),
             ("K-factor", f"{inputs.effective_k_factor:.4f} m/s"),
             ("K-factor source", inputs.k_factor_source),
+            (
+                "K applicability",
+                inputs.k_factor_applicability if inputs.use_gpsa_k_factor else "Manual entry",
+            ),
             (axial_label, f"{inputs.l_over_d:.2f}"),
             ("Vapor area margin", f"{inputs.margin:.0%}"),
             ("Demister", "Yes" if inputs.has_demister else "No"),

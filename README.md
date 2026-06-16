@@ -1,75 +1,88 @@
 # Flash Drum Designer
 
-Preliminary sizing tool for **horizontal and vertical** two-phase flash drums (knockout drums / vapor-liquid separators) using outlet stream data from process simulators such as Aspen Plus **FLASH2**.
+**Flash Drum Designer is not a process simulator.** It does not run flash calculations, heat balances, or thermodynamic separation modeling.
 
-Aspen Plus does not size FLASH2 separator drums directly. This project applies two standard design criteria—**Souders-Brown vapor disengagement** and **liquid residence time**—and reports the governing drum dimensions.
+It is a **preliminary mechanical sizing tool** for horizontal and vertical knockout drums. Run your process in a simulator such as Aspen Plus, take the **vapor and liquid outlet stream results** (mass flow rates and densities), add design parameters such as residence time and K-factor, and this program estimates the **drum diameter and length/height** to build.
 
-## Scope
+Aspen Plus can model a **FLASH2** separator, but it does not size the vessel. Flash Drum Designer fills that gap using standard Souders-Brown and liquid-holdup correlations.
 
-This tool models an **isenthalpic flash separator**:
+## Quick Start (Windows)
 
-- No heat duty or reboiler/condenser inputs are required
-- Whatever enters the drum thermally leaves through the outlet streams you provide
-- Design inputs are **outlet vapor and liquid mass flows and densities** from a converged FLASH2 simulation
+1. Open the [**Releases**](https://github.com/f-ritz/flash-drum-designer/releases) tab on GitHub.
+2. Download **`FlashDrumDesigner.exe`** from the latest release.
+3. Double-click the executable to launch the desktop app.
+4. Enter outlet stream data from your simulation (or click **Load Example** to try a sample case).
+5. Click **Calculate**. A PDF sizing report is saved automatically in the same folder as the EXE.
 
-## Features
+No Python installation is required when using the packaged executable.
 
-- Horizontal and vertical drum orientation
-- Souders-Brown sizing with manual or **GPSA pressure-based K-factor lookup**
-- GPSA service corrections (standard, glycol/amine, compressor suction)
-- Demister / no-demister K-factor adjustment
-- Liquid holdup sizing from user-specified residence time
-- SI and US customary input units
-- PDF report export with input/result tables and vessel schematic
-- Command-line interface and native Windows desktop GUI (PySide6)
-- Unit tests for sizing equations, GPSA lookup, conversions, and PDF export
+## What This Tool Does
 
-## Design Basis
+- Accepts **outlet vapor and liquid** mass flow rates and densities from your converged simulation
+- Sizes the drum using **Souders-Brown** vapor disengagement and **liquid holdup** for a user-specified residence time
+- Supports **horizontal and vertical** orientation
+- Looks up **GPSA pressure-based K-factors** (or accepts a manual K-factor)
+- Applies GPSA service corrections (standard, glycol/amine, compressor suction), demister adjustment, and pressure applicability rules
+- Assumes a fixed **50% liquid level** (half-full) for holdup and horizontal vapor-area sizing
+- Works in **SI or US customary** units
+- Exports a **PDF report** with input/result tables and a vessel schematic
 
-### 1. Vapor Disengagement — Souders-Brown Equation
+## What This Tool Does Not Do
 
-$$
-V_{\max} = K \sqrt{\frac{\rho_l - \rho_v}{\rho_v}}
-$$
+- Simulate the process or predict stream compositions
+- Replace Aspen, HYSYS, or any other process simulator
+- Model heat duty, feed conditions, or phase equilibrium
+- Size nozzles, internals, or a complete mechanical design package
 
-| Symbol | Description |
-|--------|-------------|
-| $V_{\max}$ | Maximum allowable vapor velocity (m/s) |
-| $K$ | Souders-Brown constant (m/s) |
-| $\rho_l$ | Liquid density (kg/m³) |
-| $\rho_v$ | Vapor density (kg/m³) |
+**Typical workflow:** simulate in Aspen (or similar) → copy outlet flows and densities → size the drum here → use the results for preliminary mechanical design.
 
-Required vapor flow area includes a configurable safety margin (default **20%**).
+## Using the Desktop App
 
-| Orientation | Vapor flow area basis |
-|-------------|----------------------|
-| Horizontal | ~50% of vessel cross-section (half-full liquid level) |
-| Vertical | Full vessel cross-section above the liquid level |
+### Getting data from Aspen Plus
 
-### 2. Liquid Holdup — Residence Time
+After your simulation converges:
 
-- Default residence time: **5 minutes**
-- Fixed liquid level: **50%** (half-full) — used for holdup volume and horizontal vapor-area sizing
-- Default L/D or H/D ratio: **4.0**
+1. Open the **FLASH2** (or equivalent flash/separator) block results.
+2. Read the **outlet vapor stream**: mass flow rate and density.
+3. Read the **outlet liquid stream**: mass flow rate and density.
+4. Enter those values in Flash Drum Designer along with your target residence time and design parameters.
 
-### 3. Final Dimensions
+The built-in **Load Example** case uses representative propane/n-butane NGL outlet data so you can verify the tool — it is not a substitute for your simulation.
 
-- **Diameter** is the larger of the vapor-side and liquid-side requirements
-- **Length** (horizontal) or **height** (vertical) follows the selected L/D or H/D ratio
-- Vertical drums may increase height when liquid inventory plus minimum vapor disengagement exceeds H/D sizing
+### Main steps in the GUI
 
-## Assumptions and Limitations
+1. Choose **unit system** and **orientation** (horizontal or vertical).
+2. Enter **outlet stream data** (vapor/liquid mass flow and density).
+3. Set **design parameters**: residence time, K-factor source (GPSA table or manual), service type, demister option, L/D or H/D ratio, and vapor area margin.
+4. For GPSA lookup, pick a table pressure (or enter a custom pressure) and specify whether the K-factor applies at, above, or below that pressure. The effective K-factor preview updates as you change settings.
+5. Click **Calculate** to see sizing results in the results panel.
 
-- Isenthalpic operation with no heat transfer sizing
-- Preliminary mechanical sizing only
-- Simplified liquid-level geometry
-- Final design still requires droplet settling checks, nozzle sizing, mechanical design, and vendor demister confirmation
+### PDF reports
 
-## K-Factor Guidance (GPSA)
+| How you run the app | PDF behavior |
+|---------------------|--------------|
+| **Downloaded EXE** | PDF is saved automatically next to the executable when you click **Calculate**. A dialog shows the full path. Use **Save PDF Again** to write another timestamped copy. |
+| **Run from source** (`py app.py`) | Click **Export PDF** after calculating to choose where to save the report. |
 
-Enable GPSA lookup with operating gauge pressure, or enter K manually.
+## Design Basis (Summary)
 
-| Gauge Pressure (bar) | K-factor (m/s) |
+Sizing applies published separator correlations to simulator outlet data. The tool does not recompute the flash.
+
+**Vapor disengagement** — Souders-Brown:
+
+$$V_{\max} = K \sqrt{\frac{\rho_l - \rho_v}{\rho_v}}$$
+
+Required vapor flow area includes a configurable safety margin (default **20%**). For horizontal drums, vapor area is based on roughly half the cross-section at 50% liquid level; for vertical drums, on the area above the liquid level.
+
+**Liquid holdup** — drum volume sized for the requested residence time at 50% liquid level.
+
+**Final dimensions** — diameter is the larger of vapor-side and liquid-side requirements; length (horizontal) or height (vertical) follows the selected L/D or H/D ratio, with vertical drums able to grow when inventory or disengagement needs require it.
+
+Defaults: **5 min** residence time, **L/D or H/D = 4.0**, **K = 0.107 m/s** when not using GPSA lookup.
+
+### GPSA K-factor table (gauge pressure)
+
+| Gauge pressure (bar) | K-factor (m/s) |
 |----------------------|----------------|
 | 0                    | 0.107          |
 | 7                    | 0.107          |
@@ -78,97 +91,51 @@ Enable GPSA lookup with operating gauge pressure, or enter K manually.
 | 63                   | 0.083          |
 | 105                  | 0.065          |
 
-GPSA adjustment rules:
+The GUI applies GPSA service multipliers, demister/no-demister rules, and pressure-relation logic (at / below / above selected pressure). See the in-app K-factor preview for the value used in your case.
 
-1. Start at $K = 0.107$ at 7 bar gauge; subtract 0.003 for each additional 7 bar above 7 bar.
-2. For glycol or amine services, multiply $K$ by 0.6–0.8.
-3. For vertical separators without mesh pads, use roughly half the table values.
-4. For compressor suction scrubbers and expander inlet separators, multiply $K$ by 0.7–0.8.
+### Assumptions and limitations
 
-## Installation
+- Outlet properties are taken as given from your simulator
+- Preliminary mechanical sizing only — confirm droplet settling, nozzles, mechanical design, and demister selection separately
 
-Requires Python 3.10+.
+## For Developers
+
+Requires **Python 3.10+**.
 
 ```powershell
-git clone <repository-url>
+git clone https://github.com/f-ritz/flash-drum-designer.git
 cd flash-drum-designer
 py -m pip install -r requirements.txt
-```
-
-## Usage
-
-### Desktop GUI
-
-```powershell
 py app.py
 ```
 
-Select orientation, unit system, outlet stream data, and design parameters. Enable GPSA K-factor lookup to size K from operating pressure. After calculating, use **Export PDF** to save a formatted report with a 50% liquid-level schematic.
-
-### Windows EXE
-
-1. Place your icon file at `assets/icon.ico`
-2. Build the executable:
-
-```powershell
-.\build_exe.ps1
-```
-
-3. Run `dist\FlashDrumDesigner.exe`
-
-When running the packaged EXE:
-
-- PDF reports are saved automatically next to the executable when you click **Calculate**
-- A dialog shows the full path where the PDF was saved
-- The results panel also displays the saved PDF path
-- **Save PDF Again** writes another timestamped copy in the same folder
-
-### Command Line
-
-#### SI example (horizontal)
+### Command-line interface
 
 ```powershell
 py flash_drum_sizing.py --vapor-mass 3.267 --liquid-mass 3.267 --vapor-density 79.42 --liquid-density 843.58
 ```
 
-#### Vertical drum with GPSA K-factor
+GPSA K-factor and PDF export:
 
 ```powershell
-py flash_drum_sizing.py --orientation vertical --use-gpsa-k --pressure 21 --vapor-mass 3.267 --liquid-mass 3.267 --vapor-density 79.42 --liquid-density 843.58
+py flash_drum_sizing.py --orientation vertical --use-gpsa-k --pressure 21 --vapor-mass 3.267 --liquid-mass 3.267 --vapor-density 79.42 --liquid-density 843.58 --pdf flash_drum_report.pdf
 ```
 
-#### US customary units
+Imperial units:
 
 ```powershell
 py flash_drum_sizing.py --units imperial --vapor-mass 11760 --liquid-mass 11760 --vapor-density 4.96 --liquid-density 52.65
 ```
 
-#### Export to PDF
+Run `py flash_drum_sizing.py --help` for all options.
+
+### Build the Windows EXE
 
 ```powershell
-py flash_drum_sizing.py --vapor-mass 3.267 --liquid-mass 3.267 --vapor-density 79.42 --liquid-density 843.58 --pdf flash_drum_report.pdf
+.\build_exe.ps1
 ```
 
-#### Arguments
-
-| Argument | Description | Default |
-|----------|-------------|---------|
-| `--vapor-mass` | Vapor mass flow (kg/s or lb/hr) | Required |
-| `--liquid-mass` | Liquid mass flow (kg/s or lb/hr) | Required |
-| `--vapor-density` | Vapor density (kg/m³ or lb/ft³) | Required |
-| `--liquid-density` | Liquid density (kg/m³ or lb/ft³) | Required |
-| `--units` | `si` or `imperial` | `si` |
-| `--orientation` | `horizontal` or `vertical` | `horizontal` |
-| `--residence-time` | Liquid residence time (minutes) | 5.0 |
-| `--k-factor` | Manual K-factor (m/s) | 0.107 |
-| `--use-gpsa-k` | Enable GPSA K-factor lookup | off |
-| `--pressure` | Gauge pressure (bar g or psig) | — |
-| `--service` | `standard`, `glycol_amine`, `compressor_suction` | `standard` |
-| `--service-multiplier` | Override GPSA service multiplier | — |
-| `--no-demister` | Apply no-demister K reduction | off |
-| `--l-over-d` | L/D or H/D ratio | 4.0 |
-| `--margin` | Vapor area safety margin | 1.20 |
-| `--pdf` | Export sizing report to PDF path | — |
+Output: `dist\FlashDrumDesigner.exe`. Optional icon: place `assets/icon.ico` before building.
 
 ### Tests
 
@@ -180,31 +147,21 @@ py -m pytest
 
 ```
 flash-drum-designer/
-├── app.py                  # PySide6 desktop application
-├── build_exe.ps1           # Windows EXE build script
-├── FlashDrumDesigner.spec  # PyInstaller spec (icon + packaging)
-├── assets/
-│   └── icon.ico            # Your custom app/EXE icon (you provide this)
+├── app.py                  # PySide6 desktop GUI
 ├── flash_drum_sizing.py    # CLI entry point
+├── build_exe.ps1           # Windows EXE build script
+├── FlashDrumDesigner.spec  # PyInstaller spec
+├── assets/                 # App icon (icon.ico)
 ├── flash_drum_designer/
-│   ├── __init__.py
-│   ├── sizing.py           # Horizontal and vertical sizing
+│   ├── sizing.py           # Souders-Brown and holdup sizing
 │   ├── k_factor.py         # GPSA K-factor lookup
+│   ├── examples.py         # Sample outlet-stream case
 │   ├── units.py            # Unit conversions
-│   ├── paths.py            # EXE/output path helpers
-│   └── pdf_export.py       # PDF report generation
-├── tests/
-│   ├── test_sizing.py
-│   ├── test_k_factor.py
-│   ├── test_units.py
-│   └── test_pdf_export.py
-├── requirements.txt
-└── README.md
+│   ├── paths.py            # EXE and PDF path helpers
+│   ├── pdf_export.py       # PDF report generation
+│   └── theme.py            # Windows 10 GUI theme
+└── tests/
 ```
-
-## Data Source
-
-After your FLASH2 simulation converges, copy the **outlet** vapor and liquid **mass flow rates** and **densities** from the stream results. Because the drum is treated as isenthalpic, those outlet values are the complete thermal and material design basis.
 
 ## License
 

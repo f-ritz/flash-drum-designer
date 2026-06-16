@@ -1,12 +1,14 @@
 import pytest
 
 from flash_drum_designer.k_factor import (
+    PressureRelation,
     ServiceType,
     apply_demister_factor,
     apply_service_multiplier,
     lookup_k_factor,
     lookup_k_factor_rule,
     lookup_k_factor_table,
+    resolve_gpsa_lookup_pressure,
     resolve_k_factor,
 )
 
@@ -38,13 +40,14 @@ def test_no_demister_halves_k_factor() -> None:
 
 
 def test_resolve_k_factor_manual() -> None:
-    k_value, source = resolve_k_factor(
+    k_value, source, applicability = resolve_k_factor(
         manual_k_factor=0.095,
         pressure_bar_gauge=None,
         use_gpsa=False,
     )
     assert k_value == pytest.approx(0.095)
     assert source == "manual entry"
+    assert applicability == ""
 
 
 def test_resolve_k_factor_gpsa_requires_pressure() -> None:
@@ -57,7 +60,7 @@ def test_resolve_k_factor_gpsa_requires_pressure() -> None:
 
 
 def test_resolve_k_factor_gpsa_with_service_and_no_demister() -> None:
-    k_value, source = resolve_k_factor(
+    k_value, source, applicability = resolve_k_factor(
         manual_k_factor=None,
         pressure_bar_gauge=7.0,
         use_gpsa=True,
@@ -66,5 +69,25 @@ def test_resolve_k_factor_gpsa_with_service_and_no_demister() -> None:
     )
     assert k_value == pytest.approx(0.107 * 0.7 * 0.5)
     assert "GPSA table" in source
-    assert "glycol/amine" in source
-    assert "no demister" in source
+    assert "base K" in source
+    assert "less than or equal to 7 bar g" in applicability
+
+
+def test_gpsa_applicability_less_than_21_bar() -> None:
+    lookup_pressure, applicability = resolve_gpsa_lookup_pressure(21.0, PressureRelation.LESS_THAN)
+    assert lookup_pressure == pytest.approx(7.0)
+    assert lookup_k_factor_table(lookup_pressure) == pytest.approx(0.107)
+    assert "less than 21.0 bar g" in applicability
+
+
+def test_gpsa_applicability_greater_than_21_bar() -> None:
+    lookup_pressure, applicability = resolve_gpsa_lookup_pressure(21.0, PressureRelation.GREATER_THAN)
+    assert lookup_pressure == pytest.approx(42.0)
+    assert lookup_k_factor_table(lookup_pressure) == pytest.approx(0.092)
+    assert "greater than 21.0 bar g" in applicability
+
+
+def test_gpsa_applicability_at_exact_table_point() -> None:
+    _, applicability = resolve_gpsa_lookup_pressure(21.0, PressureRelation.AT)
+    assert "less than 21 bar g" in applicability
+    assert "greater than 21 bar g" in applicability
