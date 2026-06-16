@@ -1,100 +1,162 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Sun Apr 12 14:24:38 2026
+"""Command-line entry point for flash drum sizing."""
 
-@author: Fritz
-"""
+from __future__ import annotations
 
+import argparse
+import sys
 
-import numpy as np
-
-def size_horizontal_flash_drum(
-    vapor_mass_flow_kg_s: float,
-    liquid_mass_flow_kg_s: float,
-    vapor_density_kg_m3: float,
-    liquid_density_kg_m3: float,
-    residence_time_min: float = 5.0,
-    K_factor: float = 0.107,          # m/s (conservative for horizontal with demister)
-    L_over_D: float = 4.0,            # Typical L/D ratio
-    margin: float = 1.20              # 20% safety margin
-):
-    """
-    Sizes a horizontal flash drum based on Aspen FLASH2 results.
-    
-    Returns: diameter (m), length (m), vapor velocity (m/s)
-    """
-    
-    # Convert mass flows to volumetric flows
-    Qv = vapor_mass_flow_kg_s / vapor_density_kg_m3      # m³/s  (vapor)
-    Ql = liquid_mass_flow_kg_s / liquid_density_kg_m3    # m³/s  (liquid)
-    
-    # 1. Vapor side - Souders-Brown
-    Vmax = K_factor * np.sqrt((liquid_density_kg_m3 - vapor_density_kg_m3) / vapor_density_kg_m3)
-    
-    # Required vapor area (with margin)
-    Av_required = Qv / Vmax * margin
-    
-    # Minimum diameter from vapor side (assuming ~50-60% of cross-section for vapor)
-    D_min_vapor = np.sqrt(4 * Av_required / (np.pi * 0.5))   # assuming half full roughly
-    
-    # 2. Liquid side - Residence time
-    liquid_holdup_volume = Ql * (residence_time_min * 60)    # m³ (at half full)
-    total_volume_required = liquid_holdup_volume * 2         # for ~50% liquid level
-    
-    # From volume and L/D ratio
-    D_from_volume = (4 * total_volume_required / (np.pi * L_over_D)) ** (1/3)
-    
-    # Take the larger diameter to satisfy both criteria
-    D = max(D_min_vapor, D_from_volume)
-    
-    # Calculate actual length
-    L = L_over_D * D
-    
-    # Actual vapor velocity
-    vapor_area_actual = (np.pi * D**2 / 4) * 0.5   # approximate vapor space
-    actual_vapor_velocity = Qv / vapor_area_actual
-    
-    print("=== Horizontal Flash Drum Sizing ===")
-    print(f"Vapor flow      : {vapor_mass_flow_kg_s:.4f} kg/s")
-    print(f"Liquid flow     : {liquid_mass_flow_kg_s:.4f} kg/s")
-    print(f"Residence time  : {residence_time_min} min")
-    print(f"Calculated Diameter : {D:.3f} m ({D*39.37:.1f} inches)")
-    print(f"Calculated Length   : {L:.3f} m ({L*39.37:.1f} inches)")
-    print(f"L/D ratio       : {L/D:.2f}")
-    print(f"Max vapor velocity  : {Vmax:.3f} m/s")
-    print(f"Actual vapor velocity: {actual_vapor_velocity:.3f} m/s")
-    print(f"Margin applied  : {margin:.0%}")
-    
-    return D, L, actual_vapor_velocity
+from flash_drum_designer import (
+    DrumOrientation,
+    FlashDrumInputs,
+    ServiceType,
+    UnitSystem,
+    export_result_pdf,
+    format_result,
+    size_flash_drum,
+)
+from flash_drum_designer.units import bar_gauge_to_psig, lb_ft3_to_kg_m3, lb_hr_to_kg_s, psig_to_bar_gauge
 
 
-# ========================== COMMAND LINE INTERFACE ==========================
-if __name__ == "__main__":
-    import argparse
-
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Size a horizontal flash drum based on vapor and liquid flows from Aspen FLASH2."
+        description=(
+            "Size a horizontal or vertical isenthalpic flash drum from Aspen FLASH2 "
+            "vapor and liquid outlet stream data."
+        )
     )
-
-    parser.add_argument("--vapor-mass",     type=float, required=True,  help="Vapor mass flow rate (kg/s)")
-    parser.add_argument("--liquid-mass",    type=float, required=True,  help="Liquid mass flow rate (kg/s)")
-    parser.add_argument("--vapor-density",  type=float, required=True,  help="Vapor density (kg/m³)")
-    parser.add_argument("--liquid-density", type=float, required=True,  help="Liquid density (kg/m³)")
-
-    parser.add_argument("--residence-time", type=float, default=5.0,    help="Liquid residence time (minutes) [default: 5.0]")
-    parser.add_argument("--k-factor",       type=float, default=0.107,  help="Souders-Brown K-factor (m/s) [default: 0.107]")
-    parser.add_argument("--l-over-d",       type=float, default=4.0,    help="Length to Diameter ratio [default: 4.0]")
-    parser.add_argument("--margin",         type=float, default=1.20,   help="Safety margin on vapor area [default: 1.20]")
-
-    args = parser.parse_args()
-
-    size_horizontal_flash_drum(
-        vapor_mass_flow_kg_s = args.vapor_mass,
-        liquid_mass_flow_kg_s = args.liquid_mass,
-        vapor_density_kg_m3 = args.vapor_density,
-        liquid_density_kg_m3 = args.liquid_density,
-        residence_time_min = args.residence_time,
-        K_factor = args.k_factor,
-        L_over_D = args.l_over_d,
-        margin = args.margin
+    parser.add_argument("--vapor-mass", type=float, required=True, help="Vapor mass flow")
+    parser.add_argument("--liquid-mass", type=float, required=True, help="Liquid mass flow")
+    parser.add_argument("--vapor-density", type=float, required=True, help="Vapor density")
+    parser.add_argument("--liquid-density", type=float, required=True, help="Liquid density")
+    parser.add_argument(
+        "--units",
+        choices=("si", "imperial"),
+        default="si",
+        help="Input units: si (kg/s, kg/m³, bar g) or imperial (lb/hr, lb/ft³, psig)",
     )
+    parser.add_argument(
+        "--orientation",
+        choices=("horizontal", "vertical"),
+        default="horizontal",
+        help="Drum orientation [default: horizontal]",
+    )
+    parser.add_argument(
+        "--residence-time",
+        type=float,
+        default=5.0,
+        help="Liquid residence time (minutes) [default: 5.0]",
+    )
+    parser.add_argument(
+        "--k-factor",
+        type=float,
+        default=None,
+        help="Manual Souders-Brown K-factor (m/s). Defaults to 0.107 when GPSA is off.",
+    )
+    parser.add_argument(
+        "--use-gpsa-k",
+        action="store_true",
+        help="Look up K-factor from GPSA using operating pressure",
+    )
+    parser.add_argument(
+        "--pressure",
+        type=float,
+        default=None,
+        help="Operating gauge pressure (bar g for SI, psig for imperial)",
+    )
+    parser.add_argument(
+        "--service",
+        choices=("standard", "glycol_amine", "compressor_suction"),
+        default="standard",
+        help="GPSA service correction [default: standard]",
+    )
+    parser.add_argument(
+        "--service-multiplier",
+        type=float,
+        default=None,
+        help="Optional override for GPSA service multiplier",
+    )
+    parser.add_argument(
+        "--no-demister",
+        action="store_true",
+        help="Apply no-demister K-factor reduction",
+    )
+    parser.add_argument(
+        "--l-over-d",
+        type=float,
+        default=4.0,
+        help="Length-to-diameter or height-to-diameter ratio [default: 4.0]",
+    )
+    parser.add_argument(
+        "--margin",
+        type=float,
+        default=1.20,
+        help="Safety margin on required vapor area [default: 1.20]",
+    )
+    parser.add_argument(
+        "--pdf",
+        type=str,
+        default=None,
+        metavar="PATH",
+        help="Export sizing report to PDF at the given path",
+    )
+    return parser
+
+
+def _convert_inputs(args: argparse.Namespace) -> tuple[FlashDrumInputs, UnitSystem]:
+    unit_system = UnitSystem(args.units)
+
+    if unit_system is UnitSystem.IMPERIAL:
+        vapor_mass_flow_kg_s = lb_hr_to_kg_s(args.vapor_mass)
+        liquid_mass_flow_kg_s = lb_hr_to_kg_s(args.liquid_mass)
+        vapor_density_kg_m3 = lb_ft3_to_kg_m3(args.vapor_density)
+        liquid_density_kg_m3 = lb_ft3_to_kg_m3(args.liquid_density)
+        pressure_bar_gauge = (
+            psig_to_bar_gauge(args.pressure) if args.pressure is not None else None
+        )
+    else:
+        vapor_mass_flow_kg_s = args.vapor_mass
+        liquid_mass_flow_kg_s = args.liquid_mass
+        vapor_density_kg_m3 = args.vapor_density
+        liquid_density_kg_m3 = args.liquid_density
+        pressure_bar_gauge = args.pressure
+
+    inputs = FlashDrumInputs(
+        vapor_mass_flow_kg_s=vapor_mass_flow_kg_s,
+        liquid_mass_flow_kg_s=liquid_mass_flow_kg_s,
+        vapor_density_kg_m3=vapor_density_kg_m3,
+        liquid_density_kg_m3=liquid_density_kg_m3,
+        orientation=DrumOrientation(args.orientation),
+        residence_time_min=args.residence_time,
+        k_factor=args.k_factor if args.k_factor is not None else 0.107,
+        use_gpsa_k_factor=args.use_gpsa_k,
+        pressure_bar_gauge=pressure_bar_gauge,
+        service_type=ServiceType(args.service),
+        service_multiplier=args.service_multiplier,
+        has_demister=not args.no_demister,
+        l_over_d=args.l_over_d,
+        margin=args.margin,
+    )
+    return inputs, unit_system
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+
+    try:
+        inputs, unit_system = _convert_inputs(args)
+        result = size_flash_drum(inputs)
+    except ValueError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+
+    print(format_result(inputs, result, unit_system=unit_system))
+
+    if args.pdf:
+        pdf_path = export_result_pdf(args.pdf, inputs, result, unit_system=unit_system)
+        print(f"\nPDF report written to: {pdf_path}")
+
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -1,78 +1,73 @@
 # Flash Drum Designer
 
-Tool for sizing Aspen Plus's FLASH2 separator drums.
-Aspen Plus has a FLASH2 unit which to my knowledge does not have sizing built-in, so I wrote my own in Python to help with my senior design project.
-I figured I'd post it here lest anybody else have the same problem.
+Preliminary sizing tool for **horizontal and vertical** two-phase flash drums (knockout drums / vapor-liquid separators) using outlet stream data from process simulators such as Aspen Plus **FLASH2**.
 
-Currently it's just a .py file, though I want to eventually make it more easy to use with a GUI.
+Aspen Plus does not size FLASH2 separator drums directly. This project applies two standard design criteria—**Souders-Brown vapor disengagement** and **liquid residence time**—and reports the governing drum dimensions.
 
-## Working Principles
+## Scope
 
-This script provides a **quick preliminary sizing** of a **horizontal two-phase flash drum** (also called a knockout drum or vapor-liquid separator) based on results from a process simulator (e.g., Aspen FLASH2).
+This tool models an **isenthalpic flash separator**:
 
-The goal of a flash drum is to:
-- Separate vapor and liquid phases efficiently
-- Prevent liquid carryover into the vapor outlet
-- Provide sufficient liquid residence time for degassing and level control
+- No heat duty or reboiler/condenser inputs are required
+- Whatever enters the drum thermally leaves through the outlet streams you provide
+- Design inputs are **outlet vapor and liquid mass flows and densities** from a converged FLASH2 simulation
 
-The script sizes the drum using two main criteria and takes the **more conservative (larger)** diameter:
+## Features
 
-### 1. Vapor Velocity – Souders-Brown Equation
+- Horizontal and vertical drum orientation
+- Souders-Brown sizing with manual or **GPSA pressure-based K-factor lookup**
+- GPSA service corrections (standard, glycol/amine, compressor suction)
+- Demister / no-demister K-factor adjustment
+- Liquid holdup sizing from user-specified residence time
+- SI and US customary input units
+- PDF report export with input/result tables and vessel schematic
+- Command-line interface and native Windows desktop GUI (PySide6)
+- Unit tests for sizing equations, GPSA lookup, conversions, and PDF export
 
-To minimize liquid droplet entrainment in the vapor, the maximum allowable vapor velocity is calculated with the **Souders-Brown equation**:
+## Design Basis
+
+### 1. Vapor Disengagement — Souders-Brown Equation
 
 $$
 V_{\max} = K \sqrt{\frac{\rho_l - \rho_v}{\rho_v}}
 $$
 
-where:
-- $V_{\max}$ = maximum allowable vapor velocity (m/s)
-- $K$ = Souders-Brown constant (empirical) — default `0.107 m/s` (conservative value for horizontal drum **with demister/mesh pad**)
-- $\rho_l$ = liquid density (kg/m³)
-- $\rho_v$ = vapor density (kg/m³)
+| Symbol | Description |
+|--------|-------------|
+| $V_{\max}$ | Maximum allowable vapor velocity (m/s) |
+| $K$ | Souders-Brown constant (m/s) |
+| $\rho_l$ | Liquid density (kg/m³) |
+| $\rho_v$ | Vapor density (kg/m³) |
 
-A **20% safety margin** is applied by default when calculating the required vapor flow area.
+Required vapor flow area includes a configurable safety margin (default **20%**).
 
-**Why this equation?**  
-It is a widely used empirical correlation (originally from Mott Souders and George Brown) that ensures droplets can settle out of the rising vapor stream under gravity.
+| Orientation | Vapor flow area basis |
+|-------------|----------------------|
+| Horizontal | ~50% of vessel cross-section (half-full liquid level) |
+| Vertical | Full vessel cross-section above the liquid level |
 
-### 2. Liquid Holdup – Residence Time
+### 2. Liquid Holdup — Residence Time
 
-The liquid section must provide enough volume so the liquid has adequate time to disengage dissolved gas and allow stable level control.
+- Default residence time: **5 minutes**
+- Fixed liquid level: **50%** (half-full) — used for holdup volume and horizontal vapor-area sizing
+- Default L/D or H/D ratio: **4.0**
 
-The script assumes:
-- **5 minutes** liquid residence time (default, common for many flash drums)
-- Approximately **50%** liquid level (half-full drum)
-- Typical **L/D ratio = 4.0** (common range for horizontal separators is 3–6)
+### 3. Final Dimensions
 
-The required diameter from the liquid side is calculated from the total vessel volume needed for the holdup.
+- **Diameter** is the larger of the vapor-side and liquid-side requirements
+- **Length** (horizontal) or **height** (vertical) follows the selected L/D or H/D ratio
+- Vertical drums may increase height when liquid inventory plus minimum vapor disengagement exceeds H/D sizing
 
-### Final Sizing Logic
+## Assumptions and Limitations
 
-- Calculate minimum diameter required by **vapor disengagement** (Souders-Brown)
-- Calculate minimum diameter required by **liquid residence time**
-- Take the **larger** of the two diameters
-- Apply the chosen **L/D ratio** to determine vessel length
-- Report actual vapor velocity (should be well below $V_{\max}$)
+- Isenthalpic operation with no heat transfer sizing
+- Preliminary mechanical sizing only
+- Simplified liquid-level geometry
+- Final design still requires droplet settling checks, nozzle sizing, mechanical design, and vendor demister confirmation
 
-### Assumptions and Limitations
+## K-Factor Guidance (GPSA)
 
-- Horizontal drum orientation
-- Roughly 50% vapor / 50% liquid cross-sectional area (simplified)
-- Includes a demister (hence the chosen K-factor)
-- Preliminary sizing only — final design should include detailed droplet settling calculations, nozzle sizing, mechanical design, and vendor confirmation
-
-### Typical Design Guidelines Used
-
-- Liquid residence time: 3–10 minutes (5 min is a good starting point)
-- L/D ratio: 3–6 (4 is very common)
-- K-factor: 0.107 m/s for horizontal separators with wire mesh demister at moderate pressure
-
-### Saunders-Brown Empirical Constants
-
-The **K-factor** is an empirical constant that depends on vessel orientation, presence of a mist eliminator (demister/mesh pad), operating pressure, and service type.
-
-The **GPSA Engineering Data Book** provides the following recommended K-values (in m/s) for **vertical drums with horizontal mesh pads**:
+Enable GPSA lookup with operating gauge pressure, or enter K manually.
 
 | Gauge Pressure (bar) | K-factor (m/s) |
 |----------------------|----------------|
@@ -83,72 +78,134 @@ The **GPSA Engineering Data Book** provides the following recommended K-values (
 | 63                   | 0.083          |
 | 105                  | 0.065          |
 
-**GPSA Adjustment Rules:**
-1. Start with **K = 0.107** at 7 bar gauge. Subtract **0.003** for every additional 7 bar above 7 bar.
-2. For **glycol or amine solutions**, multiply the K-value by **0.6 – 0.8**.
-3. For **vertical separators without mesh pads**, use approximately **one-half** of the above values.
-4. For **compressor suction scrubbers** and **expander inlet separators**, multiply K by **0.7 – 0.8**.
+GPSA adjustment rules:
 
-> **Note for horizontal drums:**  
-> The values above are officially given for vertical vessels. For **horizontal flash drums with a mesh pad** (the case handled by this script), many engineers use the same table as a conservative starting point. The script defaults to `K_factor = 0.107` m/s, which is a safe, commonly used conservative value for moderate-pressure horizontal separators equipped with a demister.
+1. Start at $K = 0.107$ at 7 bar gauge; subtract 0.003 for each additional 7 bar above 7 bar.
+2. For glycol or amine services, multiply $K$ by 0.6–0.8.
+3. For vertical separators without mesh pads, use roughly half the table values.
+4. For compressor suction scrubbers and expander inlet separators, multiply $K$ by 0.7–0.8.
 
-### Why the Default K = 0.107?
+## Installation
 
-- It matches the GPSA recommendation at low-to-moderate pressure (≤ 7 bar g).
-- It includes a built-in safety margin for horizontal flow and typical mesh pad performance.
-- You can lower it at higher pressures or raise it slightly if you have detailed vendor data for your specific demister.
+Requires Python 3.10+.
 
-### How to Choose K in Practice
-
-- Low pressure flash drums (< 10 bar): `K = 0.107`
-- High pressure (> 40 bar): Reduce according to the GPSA table or rule.
-- Foaming or viscous services (amine/glycol): Apply the 0.6–0.8 multiplier.
-- No demister: Use ~0.05–0.06 m/s (roughly half).
-
-Always verify the final design with detailed droplet settling calculations, vendor mist eliminator data, and mechanical considerations.
-
-## How to Use
-
-When you run a FLASH2 drum in Aspen and flip to the stream results, it'll have calculated the densities and mass flowrates of the vapor and liquid fractions leaving the drum for you.
-This information is essential to this script.
-By default, K = 0.107 and residence time = 5 minutes, so you do not need to enter those manually if you don't wish to change them.
-
-### Running from Command Line
-
-Open a terminal in the folder containing `flash_drum_sizing.py` and use the following commands:
-
-#### On Windows (PowerShell or Command Prompt)
 ```powershell
-py flash_drum_sizing.py --vapor-mass 3.267 --liquid-mass 3.267 --vapor-density 79.42 --liquid-density 843.58
-```
-#### On Linux / macOS
-
-```bash
-python flash_drum_sizing.py --vapor-mass 3.267 --liquid-mass 3.267 --vapor-density 79.42 --liquid-density 843.58
+git clone <repository-url>
+cd flash-drum-designer
+py -m pip install -r requirements.txt
 ```
 
-#### Available arguments
+## Usage
 
-#### Available Arguments
+### Desktop GUI
 
-| Argument           | Description                              | Default | Required |
-|--------------------|------------------------------------------|---------|----------|
-| `--vapor-mass`     | Vapor mass flow rate (kg/s)              | -       | Yes      |
-| `--liquid-mass`    | Liquid mass flow rate (kg/s)             | -       | Yes      |
-| `--vapor-density`  | Vapor density (kg/m³)                    | -       | Yes      |
-| `--liquid-density` | Liquid density (kg/m³)                   | -       | Yes      |
-| `--residence-time` | Liquid residence time (minutes)          | 5.0     | No       |
-| `--k-factor`       | Souders-Brown K-factor (m/s)             | 0.107   | No       |
-| `--l-over-d`       | Length / Diameter ratio                  | 4.0     | No       |
-| `--margin`         | Safety margin on vapor area              | 1.20    | No       |
+```powershell
+py app.py
+```
 
+Select orientation, unit system, outlet stream data, and design parameters. Enable GPSA K-factor lookup to size K from operating pressure. After calculating, use **Export PDF** to save a formatted report with a 50% liquid-level schematic.
 
-#### Basic example using test values
+### Windows EXE
+
+1. Place your icon file at `assets/icon.ico`
+2. Build the executable:
+
+```powershell
+.\build_exe.ps1
+```
+
+3. Run `dist\FlashDrumDesigner.exe`
+
+When running the packaged EXE:
+
+- PDF reports are saved automatically next to the executable when you click **Calculate**
+- A dialog shows the full path where the PDF was saved
+- The results panel also displays the saved PDF path
+- **Save PDF Again** writes another timestamped copy in the same folder
+
+### Command Line
+
+#### SI example (horizontal)
+
 ```powershell
 py flash_drum_sizing.py --vapor-mass 3.267 --liquid-mass 3.267 --vapor-density 79.42 --liquid-density 843.58
 ```
 
-#### Custom example with different residence time and K-factor
+#### Vertical drum with GPSA K-factor
+
 ```powershell
-py flash_drum_sizing.py --vapor-mass 8.5 --liquid-mass 4.2 --vapor-density 45.3 --liquid-density 720 --residence-time 6 --k-factor 0.095
+py flash_drum_sizing.py --orientation vertical --use-gpsa-k --pressure 21 --vapor-mass 3.267 --liquid-mass 3.267 --vapor-density 79.42 --liquid-density 843.58
 ```
+
+#### US customary units
+
+```powershell
+py flash_drum_sizing.py --units imperial --vapor-mass 11760 --liquid-mass 11760 --vapor-density 4.96 --liquid-density 52.65
+```
+
+#### Export to PDF
+
+```powershell
+py flash_drum_sizing.py --vapor-mass 3.267 --liquid-mass 3.267 --vapor-density 79.42 --liquid-density 843.58 --pdf flash_drum_report.pdf
+```
+
+#### Arguments
+
+| Argument | Description | Default |
+|----------|-------------|---------|
+| `--vapor-mass` | Vapor mass flow (kg/s or lb/hr) | Required |
+| `--liquid-mass` | Liquid mass flow (kg/s or lb/hr) | Required |
+| `--vapor-density` | Vapor density (kg/m³ or lb/ft³) | Required |
+| `--liquid-density` | Liquid density (kg/m³ or lb/ft³) | Required |
+| `--units` | `si` or `imperial` | `si` |
+| `--orientation` | `horizontal` or `vertical` | `horizontal` |
+| `--residence-time` | Liquid residence time (minutes) | 5.0 |
+| `--k-factor` | Manual K-factor (m/s) | 0.107 |
+| `--use-gpsa-k` | Enable GPSA K-factor lookup | off |
+| `--pressure` | Gauge pressure (bar g or psig) | — |
+| `--service` | `standard`, `glycol_amine`, `compressor_suction` | `standard` |
+| `--service-multiplier` | Override GPSA service multiplier | — |
+| `--no-demister` | Apply no-demister K reduction | off |
+| `--l-over-d` | L/D or H/D ratio | 4.0 |
+| `--margin` | Vapor area safety margin | 1.20 |
+| `--pdf` | Export sizing report to PDF path | — |
+
+### Tests
+
+```powershell
+py -m pytest
+```
+
+## Project Structure
+
+```
+flash-drum-designer/
+├── app.py                  # PySide6 desktop application
+├── build_exe.ps1           # Windows EXE build script
+├── FlashDrumDesigner.spec  # PyInstaller spec (icon + packaging)
+├── assets/
+│   └── icon.ico            # Your custom app/EXE icon (you provide this)
+├── flash_drum_sizing.py    # CLI entry point
+├── flash_drum_designer/
+│   ├── __init__.py
+│   ├── sizing.py           # Horizontal and vertical sizing
+│   ├── k_factor.py         # GPSA K-factor lookup
+│   ├── units.py            # Unit conversions
+│   ├── paths.py            # EXE/output path helpers
+│   └── pdf_export.py       # PDF report generation
+├── tests/
+│   ├── test_sizing.py
+│   ├── test_k_factor.py
+│   ├── test_units.py
+│   └── test_pdf_export.py
+├── requirements.txt
+└── README.md
+```
+
+## Data Source
+
+After your FLASH2 simulation converges, copy the **outlet** vapor and liquid **mass flow rates** and **densities** from the stream results. Because the drum is treated as isenthalpic, those outlet values are the complete thermal and material design basis.
+
+## License
+
+Use and modify freely for engineering and academic work. Verify all results against applicable design standards before issuing for construction.
